@@ -1,0 +1,28 @@
+
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the requirements file into the container
+COPY requirements.txt .
+
+RUN apt-get update && apt-get install -y git gcc g++ build-essential
+
+# Install any needed packages specified in requirements.txt
+# We use git to install agentos from the repository
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application's code into the container
+COPY . .
+
+# Make port 8000 available to the world outside this container
+EXPOSE 9090
+
+# Define environment variable for the API key
+# You will pass the actual key when you run the container
+ENV GOOGLE_API_KEY=""
+
+# Run the application
+CMD ["uvicorn", "main_agentos:app", "--host", "0.0.0.0", "--port", "9090"]

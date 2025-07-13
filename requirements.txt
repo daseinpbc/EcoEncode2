@@ -1,0 +1,15 @@
+
+# Required for your application
+fastapi
+pydantic
+langchain-google-genai
+python-dotenv
+
+# For the GenAI protocol
+git+https://github.com/genai-works-org/genai-protocol.git
+
+# For the AgentOS
+agentos
+
+# For serving the FastAPI app
+uvicorn
