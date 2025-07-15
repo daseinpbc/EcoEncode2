@@ -8,7 +8,7 @@ from typing import Annotated
 # --- CHANGE: Import OpenAI instead of Google ---
 from genai_session.session import GenAISession
 from genai_session.utils.context import GenAIContext
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # --- Agent JWT & WebSocket Configuration ---
 # TODO: Replace with your actual agent JWTs
