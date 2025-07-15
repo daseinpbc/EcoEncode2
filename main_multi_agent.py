@@ -11,11 +11,11 @@ from genai_session.utils.context import GenAIContext
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # --- Agent JWT & WebSocket Configuration ---
-# TODO: Replace with your actual agent JWTs
-AGENT_JWT_FULL_STACK = "your_jwt_for_full_stack_agent"
-AGENT_JWT_PLANNER = "your_jwt_for_planner_agent"
-AGENT_JWT_EXECUTOR = "your_jwt_for_executor_agent"
-AGENT_JWT_AUDITOR = "your_jwt_for_auditor_agent"
+
+AGENT_JWT_FULL_STACK = os.getenv("AGENT_JWT_FULL_STACK")
+AGENT_JWT_PLANNER = os.getenv("AGENT_JWT_PLANNER") 
+AGENT_JWT_EXECUTOR = os.getenv("AGENT_JWT_EXECUTOR")
+AGENT_JWT_AUDITOR = os.getenv("AGENT_JWT_AUDITOR")
 
 WEBSOCKET_URL = "wss://poc.genai.works/ws"
 
