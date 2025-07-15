@@ -13,7 +13,8 @@ AGENT_JWT_PLANNER = os.getenv("AGENT_JWT_PLANNER")
 AGENT_JWT_EXECUTOR = os.getenv("AGENT_JWT_EXECUTOR")
 AGENT_JWT_AUDITOR = os.getenv("AGENT_JWT_AUDITOR")
 
-WEBSOCKET_URL = "wss://poc.genai.works/ws"
+# Use host.docker.internal to connect to local router from Docker container
+WEBSOCKET_URL = "ws://host.docker.internal:8080/ws"
 
 # --- Session Initialization ---
 session_full_stack = GenAISession(jwt_token=AGENT_JWT_FULL_STACK, ws_url=WEBSOCKET_URL)
@@ -108,33 +109,63 @@ async def auditor_agent(
     """Calculates a sustainability score and generates a markdown report."""
     optimizations = plan.get("optimizations", [])
     components = plan.get("components", [])
-    score = 100
+      # 1. Calculate Best Practices Score
+    best_practices_score = 100
     notes = []
-    if "LazyLoading" in optimizations: score += 30; notes.append("✅ Implemented Lazy Loading (+30 pts)")
-    if "Memoization" in optimizations: score += 20; notes.append("✅ Used Memoization (+20 pts)")
-    is_list = any("List" in s or "Gallery" in s for s in components)
-    if is_list and "Memoization" not in optimizations: score -= 15; notes.append("❌ Failed to memoize list items (-15 pts)")
-    best_practices_score = min(max(score, 0), 100)
-    page_weight_score = 85
-    performance_score = 92
-    eco_grade = (page_weight_score * 0.5) + (performance_score * 0.3) + (best_practices_score * 0.2)
+    # Bonuses
+    if "LazyLoading" in optimizations: best_practices_score += 30; notes.append("✅ Implemented Lazy Loading (+30 pts)")
+    if "Memoization" in optimizations: best_practices_score += 20; notes.append("✅ Used Memoization for list items (+20 pts)")
+    if "ResponsiveImages" in optimizations: best_practices_score += 20; notes.append("✅ Planned for Responsive Images (+20 pts)")
+    if "UseCSSVariablesForThemes" in optimizations: best_practices_score += 15; notes.append("✅ Used CSS Variables for Theming (+15 pts)")
+    if "PreferCSSTransitions" in optimizations: best_practices_score += 15; notes.append("✅ Preferred CSS Transitions (+15 pts)")
+    # Penalties
+    is_list = any("List" in s or "Gallery" in s for s in plan.get("components", []))
+    if is_list and "Memoization" not in optimizations: best_practices_score -= 15; notes.append("❌ Failed to memoize list items (-15 pts)")
+    if "NextGenFormats" not in optimizations: best_practices_score -= 10; notes.append("❌ Did not use modern image formats (-10 pts)")
+    # Cap score at 100 for display
+    best_practices_score = min(max(best_practices_score, 0), 100)
     
-    # Generate markdown report
-    report_markdown = f"""
-# Eco-Grade Report
+    # 2. Calculate Page Weight Score (MOCKED VALUES)
+    # In a real app, you would get these numbers from a build process or performance audit tool.
+    mock_total_page_weight_kb = 750 
+   
+    #if mock_total_page_weight_kb < 500: page_weight_score = 100
+    #elif mock_total_page_weight_kb <= 1000: page_weight_score = 85
+    #elif mock_total_page_weight_kb <= 2000: page_weight_score = 60
+    #elif mock_total_page_weight_kb <= 4000: page_weight_score = 30
+    #else: page_weight_score = 10
+    page_weight_score = 85
 
-**Overall Eco-Grade: {eco_grade:.1f}/100**
+    # 3. Calculate Performance Score (MOCKED VALUES)
+    # In a real app, you would get these from a tool like Google's PageSpeed Insights API.
+    mock_lcp_s = 2.8
+    mock_inp_ms = 150
+    lcp_score = 100 if mock_lcp_s < 2.5 else 50 if mock_lcp_s <= 4.0 else 0
+    inp_score = 100 if mock_inp_ms < 200 else 50 if mock_inp_ms <= 500 else 0
+    performance_score = (lcp_score * 0.6) + (inp_score * 0.4)
 
-## Breakdown:
-- Page Weight Score: {page_weight_score}/100
-- Performance Score: {performance_score}/100  
-- Best Practices Score: {best_practices_score}/100
+    # 4. Final Eco-Grade Calculation
+    eco_grade = (page_weight_score * 0.5) + (performance_score * 0.3) + (best_practices_score * 0.2)
+
+    # 5. Generate Report Text
+    report_text = f"""
+### 🌍 Eco-Grade Report
+
+Your code achieved an Eco-Grade of **{eco_grade:.0f}/100**.
+
+---
+
+#### Score Breakdown:
+* **Page Weight Score:** {page_weight_score}/100 `(mocked)`
+* **Performance Score:** {performance_score:.0f}/100 `(mocked)`
+* **Best Practices Score:** {best_practices_score}/100
+
 
 ## Notes:
 {chr(10).join(notes) if notes else "No specific notes."}
 """
     
-    return {"report_markdown": report_markdown, "eco_grade": eco_grade}
+    return {"report_markdown": report_text, "eco_grade": eco_grade}
 
 
 # --- Agent 4: The Orchestrator (Full Stack Agent) ---
