@@ -110,34 +110,136 @@ async def auditor_agent(
     optimizations = plan.get("optimizations", [])
     components = plan.get("components", [])
       # 1. Calculate Best Practices Score
-    best_practices_score = 100
+     # 1. Calculate Best Practices Score
+    best_practices_score = 70  # Base score
     notes = []
-    # Bonuses
-    if "LazyLoading" in optimizations: best_practices_score += 30; notes.append("✅ Implemented Lazy Loading (+30 pts)")
-    if "Memoization" in optimizations: best_practices_score += 20; notes.append("✅ Used Memoization for list items (+20 pts)")
-    if "ResponsiveImages" in optimizations: best_practices_score += 20; notes.append("✅ Planned for Responsive Images (+20 pts)")
-    if "UseCSSVariablesForThemes" in optimizations: best_practices_score += 15; notes.append("✅ Used CSS Variables for Theming (+15 pts)")
-    if "PreferCSSTransitions" in optimizations: best_practices_score += 15; notes.append("✅ Preferred CSS Transitions (+15 pts)")
-    # Penalties
-    is_list = any("List" in s or "Gallery" in s for s in plan.get("components", []))
-    if is_list and "Memoization" not in optimizations: best_practices_score -= 15; notes.append("❌ Failed to memoize list items (-15 pts)")
-    if "NextGenFormats" not in optimizations: best_practices_score -= 10; notes.append("❌ Did not use modern image formats (-10 pts)")
-    # Cap score at 100 for display
+    
+    # --- Data Transfer & Network Usage Heuristics ---
+    if "NextGenFormats" in optimizations: 
+        best_practices_score += 10
+        notes.append("✅ Using next-gen image formats (.webp/.avif) (+10 pts)")
+    else:
+        best_practices_score -= 5
+        notes.append("❌ Not using next-gen image formats (-5 pts)")
+    
+    if "LazyLoading" in optimizations: 
+        best_practices_score += 15
+        notes.append("✅ Implemented lazy loading for below-the-fold content (+15 pts)")
+    else:
+        has_large_content = any("Table" in s or "List" in s or "Gallery" in s for s in components)
+        if has_large_content:
+            best_practices_score -= 10
+            notes.append("❌ Missing lazy loading for large content (-10 pts)")
+    
+    if "ResponsiveImages" in optimizations: 
+        best_practices_score += 10
+        notes.append("✅ Using responsive images with srcset attribute (+10 pts)")
+    else:
+        has_images = any("Image" in s or "Photo" in s or "Banner" in s for s in components)
+        if has_images:
+            best_practices_score -= 5
+            notes.append("❌ Not using responsive images (-5 pts)")
+    
+    if "CodeSplitting" in optimizations: 
+        best_practices_score += 10
+        notes.append("✅ Implemented code splitting for large UI sections (+10 pts)")
+    else:
+        has_complex_ui = any("Chart" in s or "Dashboard" in s or "Modal" in s for s in components)
+        if has_complex_ui:
+            best_practices_score -= 5
+            notes.append("❌ Missing code splitting for complex UI elements (-5 pts)")
+    
+    if "PayloadReduction" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Optimized API data fetching to reduce payload size (+8 pts)")
+    else:
+        has_data_fetching = any("Table" in s or "List" in s or "Data" in s for s in components)
+        if has_data_fetching:
+            best_practices_score -= 5
+            notes.append("❌ Not optimizing API data payload size (-5 pts)")
+    
+    if "AvoidPolling" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Using WebSockets/SSE instead of polling (+8 pts)")
+    else:
+        has_realtime = any("Realtime" in s or "Live" in s or "Feed" in s for s in components)
+        if has_realtime:
+            best_practices_score -= 8
+            notes.append("❌ Using polling instead of WebSockets/SSE (-8 pts)")
+    
+    # --- Computation & JavaScript Execution Heuristics ---
+    if "Memoization" in optimizations: 
+        best_practices_score += 12
+        notes.append("✅ Using memoization for list/grid items (+12 pts)")
+    else:
+        is_list = any("List" in s or "Table" in s or "Grid" in s for s in components)
+        if is_list:
+            best_practices_score -= 10
+            notes.append("❌ Missing memoization for list/grid items (-10 pts)")
+    
+    if "ConditionalRendering" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Properly unmounting non-visible components (+8 pts)")
+    else:
+        has_conditional_ui = any("Tab" in s or "Modal" in s or "Accordion" in s for s in components)
+        if has_conditional_ui:
+            best_practices_score -= 5
+            notes.append("❌ Using CSS to hide components instead of unmounting (-5 pts)")
+    
+    if "DebounceStateUpdates" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Debouncing frequent event handlers (+8 pts)")
+    else:
+        has_frequent_events = any("Search" in s or "Filter" in s or "Resize" in s for s in components)
+        if has_frequent_events:
+            best_practices_score -= 5
+            notes.append("❌ Not debouncing frequent events (-5 pts)")
+    
+    if "PromoteFlatState" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Using flat state structure for better performance (+8 pts)")
+    else:
+        has_complex_state = any("Form" in s or "Filter" in s or "Dashboard" in s for s in components)
+        if has_complex_state:
+            best_practices_score -= 5
+            notes.append("❌ Using deeply nested state structure (-5 pts)")
+    
+    # --- Rendering & Browser Painting Heuristics ---
+    if "PreferCSSTransitions" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Using CSS for simple animations instead of JS (+8 pts)")
+    else:
+        has_animations = any("Animation" in s or "Transition" in s or "Hover" in s for s in components)
+        if has_animations:
+            best_practices_score -= 5
+            notes.append("❌ Using JS for animations that could be CSS (-5 pts)")
+    
+    if "HardwareAcceleratedProperties" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Using hardware-accelerated properties for animations (+8 pts)")
+    else:
+        has_animations = any("Animation" in s or "Transition" in s for s in components)
+        if has_animations:
+            best_practices_score -= 5
+            notes.append("❌ Not using hardware-accelerated properties (-5 pts)")
+    
+    if "UseCSSVariablesForThemes" in optimizations: 
+        best_practices_score += 8
+        notes.append("✅ Using CSS variables for theming (+8 pts)")
+    else:
+        has_theming = any("Theme" in s or "Dark" in s or "Style" in s for s in components)
+        if has_theming:
+            best_practices_score -= 5
+            notes.append("❌ Not using CSS variables for theming (-5 pts)")
+    
+    # Cap score between 0 and 100
     best_practices_score = min(max(best_practices_score, 0), 100)
     
     # 2. Calculate Page Weight Score (MOCKED VALUES)
-    # In a real app, you would get these numbers from a build process or performance audit tool.
     mock_total_page_weight_kb = 750 
-   
-    #if mock_total_page_weight_kb < 500: page_weight_score = 100
-    #elif mock_total_page_weight_kb <= 1000: page_weight_score = 85
-    #elif mock_total_page_weight_kb <= 2000: page_weight_score = 60
-    #elif mock_total_page_weight_kb <= 4000: page_weight_score = 30
-    #else: page_weight_score = 10
     page_weight_score = 85
 
     # 3. Calculate Performance Score (MOCKED VALUES)
-    # In a real app, you would get these from a tool like Google's PageSpeed Insights API.
     mock_lcp_s = 2.8
     mock_inp_ms = 150
     lcp_score = 100 if mock_lcp_s < 2.5 else 50 if mock_lcp_s <= 4.0 else 0
@@ -160,74 +262,64 @@ Your code achieved an Eco-Grade of **{eco_grade:.0f}/100**.
 * **Performance Score:** {performance_score:.0f}/100 `(mocked)`
 * **Best Practices Score:** {best_practices_score}/100
 
-
-## Notes:
+## Sustainability Analysis:
 {chr(10).join(notes) if notes else "No specific notes."}
+
+## Recommendations:
 """
     
-    return {"report_markdown": report_text, "eco_grade": eco_grade}
-
-
-# --- Agent 4: The Orchestrator (Full Stack Agent) ---
-@session_full_stack.bind(
-    name="full_stack_agent",
-    description="Orchestrates the planning, execution, and auditing of sustainable code generation."
-)
-async def full_stack_agent(
-    agent_context: GenAIContext,
-    prompt: Annotated[str, "The user's top-level request for code generation."]
-) -> dict:
-    """
-    Accepts a prompt and returns a complete response with generated code and eco-grade.
-    """
-    print(f"--- Full Stack Agent received prompt: '{prompt}' ---")
-
-    # Since GenAI agents run independently, we simulate the multi-agent workflow here
-    # In a real implementation, this could coordinate with other agents via the GenAI platform
+    # Add recommendations based on missing optimizations
+    missing_optimizations = []
+    all_optimizations = [
+        "NextGenFormats", "LazyLoading", "ResponsiveImages", "CodeSplitting", 
+        "PayloadReduction", "AvoidPolling", "Memoization", "ConditionalRendering", 
+        "DebounceStateUpdates", "PromoteFlatState", "PreferCSSTransitions", 
+        "HardwareAcceleratedProperties", "UseCSSVariablesForThemes"
+    ]
     
-    # Simulate planner output
-    plan = {
-        "components": ["React Component", "CSS Styling"],
-        "optimizations": ["LazyLoading", "Memoization", "ResponsiveImages"]
-    }
+    for opt in all_optimizations:
+        if opt not in optimizations:
+            if opt == "NextGenFormats":
+                missing_optimizations.append("- Use WebP or AVIF image formats instead of PNG/JPEG to reduce file sizes")
+            elif opt == "LazyLoading":
+                missing_optimizations.append("- Implement React.lazy() for components that aren't immediately visible")
+            elif opt == "ResponsiveImages":
+                missing_optimizations.append("- Use the srcset attribute to serve different image sizes based on viewport")
+            elif opt == "CodeSplitting":
+                missing_optimizations.append("- Implement code-splitting for large components to reduce initial load time")
+            elif opt == "PayloadReduction":
+                missing_optimizations.append("- Only fetch necessary fields from your API to reduce data transfer")
+            elif opt == "AvoidPolling":
+                missing_optimizations.append("- Replace polling with WebSockets or Server-Sent Events for real-time updates")
+            elif opt == "Memoization":
+                missing_optimizations.append("- Use React.memo() for list items to prevent unnecessary re-renders")
+            elif opt == "ConditionalRendering":
+                missing_optimizations.append("- Unmount non-visible components instead of hiding them with CSS")
+            elif opt == "DebounceStateUpdates":
+                missing_optimizations.append("- Implement debouncing for event handlers that trigger frequent updates")
+            elif opt == "PromoteFlatState":
+                missing_optimizations.append("- Flatten your state structure to improve performance")
+            elif opt == "PreferCSSTransitions":
+                missing_optimizations.append("- Use CSS transitions instead of JavaScript for simple animations")
+            elif opt == "HardwareAcceleratedProperties":
+                missing_optimizations.append("- Animate transform and opacity properties for better performance")
+            elif opt == "UseCSSVariablesForThemes":
+                missing_optimizations.append("- Implement CSS variables for theming to reduce JavaScript overhead")
     
-    # Simulate executor output
-    generated_code = """
-import React from 'react';
-
-const GeneratedComponent = () => {
-  return (
-    <div style={{padding: '20px'}}>
-      <h1>Generated React Component</h1>
-      <p>This component was generated for: {}</p>
-    </div>
-  );
-};
-
-export default GeneratedComponent;
-""".format(prompt)
+    # Add recommendations to the report
+    if missing_optimizations:
+        report_text += "\n" + "\n".join(missing_optimizations)
+    else:
+        report_text += "\nNo specific recommendations. All sustainable practices are already implemented."
     
-    # Simulate auditor output
-    eco_grade = 95.5
-    report_markdown = """
-# Eco-Grade Report
-
-**Overall Eco-Grade: 95.5/100**
-
-## Breakdown:
-- Page Weight Score: 85/100
-- Performance Score: 92/100  
-- Best Practices Score: 150/100
-
-## Notes:
-✅ Implemented Lazy Loading (+30 pts)
-✅ Used Memoization (+20 pts)
-"""
-
     return {
-        "generatedCode": generated_code,
-        "reportMarkdown": report_markdown,
-        "ecoGrade": eco_grade
+        "report_markdown": report_text, 
+        "eco_grade": eco_grade,
+        "best_practices_score": best_practices_score,
+        "page_weight_score": page_weight_score,
+        "performance_score": performance_score,
+        "notes": notes,
+        "recommendations": missing_optimizations
     }
 
 
