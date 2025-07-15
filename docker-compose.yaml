@@ -5,6 +5,9 @@ version: '3.8'
 services:
   app:
     # Build the image from the Dockerfile in the current directory
+    environment:
+     - SERVICE_URL=http://host.docker.internal:9001
+
     build: .
     # Securely load your API keys and JWTs from the .env file
     env_file:
