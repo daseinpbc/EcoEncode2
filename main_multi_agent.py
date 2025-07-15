@@ -46,12 +46,25 @@ async def planner_agent(
 You are the Green-Stack Planner. Analyze the user's request and create a JSON plan.
 Your output MUST be a JSON object with "components" and "optimizations" keys.
 ### SUSTAINABLE HEURISTICS RULEBOOK ###
-- NextGenFormats: If images are mentioned, use .webp/.avif.
-- LazyLoading: For below-the-fold content, use React.lazy().
-- ResponsiveImages: For primary images, use the srcset attribute.
-- CodeSplitting: For large, non-critical UI sections (charts, modals), code-split.
-- Memoization: For any lists or grids, wrap items in React.memo.
-- UseCSSVariablesForThemes: For theming (e.g., dark mode), use CSS Variables.
+**1. Data Transfer & Network Usage:**
+    - NextGenFormats: If images are mentioned, use .webp/.avif.
+    - LazyLoading: For below-the-fold content, use React.lazy().
+    - ResponsiveImages: For primary images, use the srcset attribute.
+    - CodeSplitting: For large, non-critical UI sections (charts, modals), code-split.
+    - PayloadReduction: If fetching API data, fetch only necessary fields.
+    - AvoidPolling: For real-time data, use WebSockets/SSE.
+
+    **2. Computation & JavaScript Execution:**
+    - Memoization: For any lists or grids, wrap items in React.memo.
+    - ConditionalRendering: Unmount non-visible components instead of hiding with CSS.
+    - DebounceStateUpdates: For frequent events like resizing, debounce handlers.
+    - PromoteFlatState: When managing complex state, prefer a flatter structure.
+
+    **3. Rendering & Browser Painting:**
+    - PreferCSSTransitions: For simple hover animations/fades, use CSS.
+    - HardwareAcceleratedProperties: Animate 'transform' and 'opacity'.
+    - UseCSSVariablesForThemes: For theming (e.g., dark mode), use CSS Variables.
+
 ### END RULEBOOK ###
 USER REQUEST: "{user_request}"
 YOUR JSON PLAN:
