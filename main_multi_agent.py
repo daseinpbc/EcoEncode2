@@ -1,0 +1,157 @@
+ main_multi_agent.py
+
+import os
+import json
+import asyncio
+from typing import Annotated
+
+# --- CHANGE: Import OpenAI instead of Google ---
+from genai_session.session import GenAISession
+from genai_session.utils.context import GenAIContext
+from langchain_openai import ChatOpenAI
+
+# --- Agent JWT & WebSocket Configuration ---
+# TODO: Replace with your actual agent JWTs
+AGENT_JWT_FULL_STACK = "your_jwt_for_full_stack_agent"
+AGENT_JWT_PLANNER = "your_jwt_for_planner_agent"
+AGENT_JWT_EXECUTOR = "your_jwt_for_executor_agent"
+AGENT_JWT_AUDITOR = "your_jwt_for_auditor_agent"
+
+WEBSOCKET_URL = "wss://poc.genai.works/ws"
+
+# --- Session Initialization ---
+session_full_stack = GenAISession(jwt_token=AGENT_JWT_FULL_STACK, ws_urls=[WEBSOCKET_URL])
+session_planner = GenAISession(jwt_token=AGENT_JWT_PLANNER, ws_urls=[WEBSOCKET_URL])
+session_executor = GenAISession(jwt_token=AGENT_JWT_EXECUTOR, ws_urls=[WEBSOCKET_URL])
+session_auditor = GenAISession(jwt_token=AGENT_JWT_AUDITOR, ws_urls=[WEBSOCKET_URL])
+
+
+# --- CHANGE: LLM Initialization for GOOGLE ---
+# It reads the OOOGLE_KEY from your environment.
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest")
+
+
+
+# --- Agent 1: Planner Agent ---
+@session_planner.bind(
+    name="planner_agent",
+    description="Analyzes a user's request and creates a sustainable coding plan."
+)
+async def planner_agent(
+    agent_context: GenAIContext,
+    user_request: Annotated[str, "The user's plain-text request."]
+) -> dict:
+    """Creates a JSON plan based on sustainable coding heuristics."""
+    system_prompt = """
+You are the Green-Stack Planner. Analyze the user's request and create a JSON plan.
+Your output MUST be a JSON object with "components" and "optimizations" keys.
+### SUSTAINABLE HEURISTICS RULEBOOK ###
+- NextGenFormats: If images are mentioned, use .webp/.avif.
+- LazyLoading: For below-the-fold content, use React.lazy().
+- ResponsiveImages: For primary images, use the srcset attribute.
+- CodeSplitting: For large, non-critical UI sections (charts, modals), code-split.
+- Memoization: For any lists or grids, wrap items in React.memo.
+- UseCSSVariablesForThemes: For theming (e.g., dark mode), use CSS Variables.
+### END RULEBOOK ###
+USER REQUEST: "{user_request}"
+YOUR JSON PLAN:
+"""
+    prompt = system_prompt.format(user_request=user_request)
+    response = llm.invoke(prompt)
+    cleaned_response = response.content.strip().replace("```json", "").replace("```", "")
+    return json.loads(cleaned_response)
+
+
+# --- Agent 2: Executor Agent ---
+@session_executor.bind(
+    name="executor_agent",
+    description="Generates React code based on a provided JSON plan."
+)
+async def executor_agent(
+    agent_context: GenAIContext,
+    plan: Annotated[dict, "The JSON execution plan from the Planner Agent."]
+) -> str:
+    """Generates a single, self-contained React component from a plan."""
+    system_prompt = """
+You are an expert React developer. Generate a single, self-contained React component that executes the following plan. The code should be functional and include styling.
+EXECUTION PLAN:
+{plan}
+REACT CODE (HTML/JSX with inline CSS in a style tag):
+"""
+    prompt = system_prompt.format(plan=json.dumps(plan, indent=2))
+    response = llm.invoke(prompt)
+    return response.content
+
+
+# --- Agent 3: Auditor Agent ---
+@session_auditor.bind(
+    name="auditor_agent",
+    description="Calculates an Eco-Grade based on a provided JSON plan."
+)
+async def auditor_agent(
+    agent_context: GenAIContext,
+    plan: Annotated[dict, "The JSON execution plan from the Planner Agent."]
+) -> dict:
+    """Calculates a sustainability score and generates a markdown report."""
+    optimizations = plan.get("optimizations", [])
+    components = plan.get("components", [])
+    score = 100
+    notes = []
+    if "LazyLoading" in optimizations: score += 30; notes.append("✅ Implemented Lazy Loading (+30 pts)")
+    if "Memoization" in optimizations: score += 20; notes.append("✅ Used Memoization (+20 pts)")
+    is_list = any("List" in s or "Gallery" in s for s in components)
+    if is_list and "Memoization" not in optimizations: score -= 15; notes.append("❌ Failed to memoize list items (-15 pts)")
+    best_practices_score = min(max(score, 0), 100)
+    page_weight_score = 85
+    performance_score = 92
+    eco_grade = (page_weight_score * 0.5) + (performance_score * 0.3) + (best_practices_score * 0.2)
+    report_prompt = f"Format this data into a user-friendly markdown report: Eco-Grade: {eco_grade}, Notes: {', '.join(notes)}"
+    report_markdown = llm.invoke(report_prompt).content
+    return {"report_markdown": report_markdown, "eco_grade": eco_grade}
+
+
+# --- Agent 4: The Orchestrator (Full Stack Agent) ---
+@session_full_stack.bind(
+    name="full_stack_agent",
+    description="Orchestrates the planning, execution, and auditing of sustainable code generation."
+)
+async def full_stack_agent(
+    agent_context: GenAIContext,
+    prompt: Annotated[str, "The user's top-level request for code generation."]
+) -> dict:
+    """
+    Accepts a prompt, then calls other agents to plan, generate code, and audit.
+    """
+    print(f"--- Orchestrator received prompt: '{prompt}' ---")
+
+    print("Calling Planner Agent...")
+    plan_result = await agent_context.call_agent("planner_agent", {"user_request": prompt})
+    print("✅ Planner returned.")
+
+    print("Calling Executor and Auditor Agents concurrently...")
+    executor_task = agent_context.call_agent("executor_agent", {"plan": plan_result})
+    auditor_task = agent_context.call_agent("auditor_agent", {"plan": plan_result})
+    
+    generated_code, report_result = await asyncio.gather(executor_task, auditor_task)
+    print("✅ Executor and Auditor returned.")
+
+    return {
+        "generatedCode": generated_code,
+        "reportMarkdown": report_result["report_markdown"],
+        "ecoGrade": report_result["eco_grade"]
+    }
+
+
+# --- Application Startup ---
+async def main():
+    """Main function to start all agents and process their events concurrently."""
+    print("Starting all agents...")
+    await asyncio.gather(
+        session_full_stack.process_events(),
+        session_planner.process_events(),
+        session_executor.process_events(),
+        session_auditor.process_events()
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
