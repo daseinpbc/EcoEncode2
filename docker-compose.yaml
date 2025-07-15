@@ -1,19 +1,18 @@
-# docker-compose.yml
-
 version: '3.8'
 
 services:
   app:
     # Build the image from the Dockerfile in the current directory
-    environment:
-     - SERVICE_URL=http://host.docker.internal:9001
-
     build: .
     # Securely load your API keys and JWTs from the .env file
     env_file:
       - .env
-    # --- CHANGES ---
-    # We remove the 'ports' section as it's not a web server.
+    # Expose a port for each of the four agents
+    ports:
+      - "9001:9001"
+      - "9002:9002"
+      - "9003:9003"
+      - "9004:9004"
     # These two lines keep the container running and allow you to see
     # the output from your agent's print() statements in your terminal.
     tty: true
