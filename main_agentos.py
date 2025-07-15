@@ -10,20 +10,28 @@ from genai_session.session import GenAISession
 from genai_session.utils.context import GenAIContext
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Your existing Agent classes (no changes needed)
+# Your existing Agent classes (no changes needed for these)
 from agentos import Agent
 
 # --- Agent JWT Configuration ---
-# Replace with your actual agent JWT
-AGENT_JWT = "your_agent_jwt_here" # TODO: Add your agent JWT here
-session = GenAISession(jwt_token=AGENT_JWT)
+# TODO: Replace each placeholder with a unique Agent JWT from the GenAI OS platform
+PLANNER_AGENT_JWT = "your_planner_agent_jwt_here"
+EXECUTOR_AGENT_JWT = "your_executor_agent_jwt_here"
+AUDITOR_AGENT_JWT = "your_auditor_agent_jwt_here"
+FULL_STACK_AGENT_JWT = "your_full_stack_agent_jwt_here"
 
-# --- LLM and Agent Initialization ---
-# Initialize the Gemini LLM that will be used by the agents
-# It reads the GOOGLE_API_KEY from your environment
+# --- Session Initialization for Each Agent ---
+planner_session = GenAISession(jwt_token=PLANNER_AGENT_JWT)
+executor_session = GenAISession(jwt_token=EXECUTOR_AGENT_JWT)
+auditor_session = GenAISession(jwt_token=AUDITOR_AGENT_JWT)
+full_stack_session = GenAISession(jwt_token=FULL_STACK_AGENT_JWT)
+
+# --- LLM Initialization ---
+# This single LLM instance can be shared by all agents.
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest")
 
-# --- Agent Definitions (Copied from your previous code) ---
+# --- Core Agent Logic (Classes) ---
+# These classes contain the synchronous, core logic for each specialist agent.
 
 class PlannerAgent(Agent):
     """AGENT 1: The Planner."""
@@ -95,34 +103,67 @@ class AuditorAgent(Agent):
         report_markdown = self.llm.invoke(report_prompt).content
         return {"report_markdown": report_markdown, "eco_grade": eco_grade}
 
-# --- Main Agent Entry Point ---
 
-@session.bind(
+# --- Registered Agent Definitions ---
+
+@planner_session.bind(name="planner_agent", description="Creates a JSON plan from a user prompt.")
+async def planner_agent(
+    agent_context: GenAIContext,
+    prompt: Annotated[str, "The user's request for code generation."]
+) -> dict:
+    """Entry point for the specialist planning agent."""
+    planner = PlannerAgent(llm)
+    return planner.run(user_request=prompt)
+
+@executor_session.bind(name="executor_agent", description="Generates React code from a JSON plan.")
+async def executor_agent(
+    agent_context: GenAIContext,
+    plan: Annotated[dict, "The JSON execution plan created by the planner_agent."]
+) -> str:
+    """Entry point for the specialist execution agent."""
+    executor = ExecutorAgent(llm)
+    return executor.run(plan=plan)
+
+@auditor_session.bind(name="auditor_agent", description="Audits a JSON plan and returns an eco-report.")
+async def auditor_agent(
+    agent_context: GenAIContext,
+    plan: Annotated[dict, "The JSON execution plan to be audited."]
+) -> dict:
+    """Entry point for the specialist auditor agent."""
+    auditor = AuditorAgent(llm)
+    return auditor.run(plan=plan)
+
+@full_stack_session.bind(
     name="full_stack_agent",
-    description="Full stack agent that plans, executes, and audits React code for sustainability."
+    description="Orchestrates the planner, executor, and auditor to generate sustainable code."
 )
 async def full_stack_agent(
     agent_context: GenAIContext,
-    prompt: Annotated[
-        str,
-        "User prompt for planning and code generation."
-    ]
+    prompt: Annotated[str, "The user's top-level request for code generation."]
 ) -> dict:
     """
-    Accepts a prompt, plans, generates code, and audits for eco-grade.
+    Orchestrator agent that performs the full plan->execute->audit workflow
+    by calling other specialist agents.
     """
-    # 1. Instantiate the agents required for the workflow
-    planner = PlannerAgent(llm)
-    executor = ExecutorAgent(llm)
-    auditor = AuditorAgent(llm)
+    print(f"Orchestrating agents for prompt: '{prompt}'")
 
-    # 2. Run the orchestration logic
-    # Note: The .run() methods are synchronous, but GenAISession handles the async event loop.
-    plan_result = planner.run(user_request=prompt)
-    generated_code = executor.run(plan=plan_result)
-    report_result = auditor.run(plan=plan_result)
+    # 1. Call the Planner Agent to get the plan
+    print("Calling planner_agent...")
+    plan_result = await agent_context.call_agent("planner_agent", {"prompt": prompt})
+    print("✅ Plan received from planner_agent.")
 
-    # 3. Return the final, combined result
+    # 2. Call the Executor and Auditor agents in parallel
+    print("Calling executor_agent and auditor_agent in parallel...")
+    executor_task = agent_context.call_agent("executor_agent", {"plan": plan_result})
+    auditor_task = agent_context.call_agent("auditor_agent", {"plan": plan_result})
+    
+    # Wait for both agents to return their results
+    results = await asyncio.gather(executor_task, auditor_task)
+    generated_code = results[0]
+    report_result = results[1]
+    print("✅ Results received from executor and auditor.")
+    
+    # 3. Combine and return the final result
     return {
         "generatedCode": generated_code,
         "reportMarkdown": report_result["report_markdown"],
@@ -132,10 +173,17 @@ async def full_stack_agent(
 # --- Application Startup ---
 
 async def main():
-    print(f"Agent 'full_stack_agent' started. Waiting for events...")
-    await session.process_events()
+    """Main function to start all agents and process their events concurrently."""
+    print("Starting all agents...")
+    
+    # Run all agent event loops concurrently
+    await asyncio.gather(
+        planner_session.process_events(),
+        executor_session.process_events(),
+        auditor_session.process_events(),
+        full_stack_session.process_events(),
+    )
 
 if __name__ == "__main__":
-    # This will run the agent and connect to the GenAI OS infrastructure.
-    # Ensure your GOOGLE_API_KEY is set as an environment variable.
+    # This runs the main asyncio event loop for all registered agents.
     asyncio.run(main())
