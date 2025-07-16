@@ -1,4 +1,4 @@
-#Dockerfile
+# Dockerfile
 
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
@@ -14,19 +14,42 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+
+ENV PATH="/root/.local/bin:$PATH"
+
 # Upgrade pip and install essential build tools first
 # This prevents errors when installing packages from source
 RUN pip install --upgrade pip setuptools wheel
 
 # Copy the requirements file into the container
-COPY requirements.txt .
+COPY requirements.txt* pyproject.toml* uv.lock* ./ 
 
 # Install the Python dependencies from your requirements file
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Expose all the required ports
+EXPOSE 9001 9002 9003 9004
+
 # Copy the rest of your application's code into the container
 COPY . .
+RUN uv sync --frozen
 
-# --- CHANGE ---
-# The command now directly runs your new multi-agent script
-CMD ["python", "main_multi_agent.py"]
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+# non-root user and group for security purposes
+RUN groupadd --system --gid 1001 app_group && \
+    useradd --system --uid 1001 --gid 1001 app_user
+RUN chown -R app_user:app_group /app
+
+USER app_user
+
+COPY --from=builder --chown=app_user:app_group /app /app
+COPY --from=builder /app/.venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY . /app
+
